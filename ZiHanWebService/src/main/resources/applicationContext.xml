@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:lang="http://www.springframework.org/schema/lang" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:cache="http://www.springframework.org/schema/cache" xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+	         http://www.springframework.org/schema/beans/spring-beans.xsd
+	         http://www.springframework.org/schema/lang
+	         http://www.springframework.org/schema/lang/spring-lang.xsd      
+	         http://www.springframework.org/schema/tx   
+	         http://www.springframework.org/schema/tx/spring-tx.xsd    
+	         http://www.springframework.org/schema/aop     
+	         http://www.springframework.org/schema/aop/spring-aop.xsd    
+	         http://www.springframework.org/schema/mvc     
+	         http://www.springframework.org/schema/mvc/spring-mvc.xsd   
+	         http://www.springframework.org/schema/context     
+	         http://www.springframework.org/schema/context/spring-context.xsd
+	         http://www.springframework.org/schema/cache
+	         http://www.springframework.org/schema/cache/spring-cache.xsd
+	         http://www.springframework.org/schema/task 
+	         http://www.springframework.org/schema/task/spring-task.xsd">
+
+	<context:property-placeholder location="classpath*:/zihan.properties"
+		ignore-resource-not-found="true" ignore-unresolvable="true" />
+	<!-- 自动扫描的包名 -->
+	<context:component-scan base-package="com.zihan.dubble"></context:component-scan>
+
+	<mvc:annotation-driven />
+
+	<task:annotation-driven />
+
+	<!-- mysql数据源 -->
+	<!-- 设置数据源属性 -->
+	<bean id="dataSource1" class="com.atomikos.jdbc.AtomikosDataSourceBean"
+		init-method="init" destroy-method="close">
+		<property name="uniqueResourceName" value="read_resource" />
+		<property name="xaDataSourceClassName" value="com.alibaba.druid.pool.xa.DruidXADataSource" />
+		<property name="xaProperties">
+			<props>
+				<prop key="url">${jdbc.url}</prop>
+				<prop key="username">${jdbc.username}</prop>
+				<prop key="password">${jdbc.password}</prop>
+				<!-- 初始化时建立物理连接的个数 -->
+				<prop key="initialSize">${jdbc.initialSize}</prop>
+			</props>
+		</property>
+	</bean>
+
+	<bean id="jdbcTemplateRead" class="org.springframework.jdbc.core.JdbcTemplate">
+		<property name="dataSource" ref="dataSource1" />
+	</bean>
+
+	<!-- 设置数据源属性 -->
+	<bean id="dataSource2" class="com.atomikos.jdbc.AtomikosDataSourceBean"
+		init-method="init" destroy-method="close">
+		<property name="uniqueResourceName" value="write_resource" />
+		<property name="xaDataSourceClassName" value="com.alibaba.druid.pool.xa.DruidXADataSource" />
+		<property name="xaProperties">
+			<props>
+				<prop key="url">${jdbc2.url}</prop>
+				<prop key="username">${jdbc2.username}</prop>
+				<prop key="password">${jdbc2.password}</prop>
+				<!-- 初始化时建立物理连接的个数 -->
+				<prop key="initialSize">${jdbc2.initialSize}</prop>
+			</props>
+		</property>
+	</bean>
+
+	<bean id="jdbcTemplateWrite" class="org.springframework.jdbc.core.JdbcTemplate">
+		<property name="dataSource" ref="dataSource2" />
+	</bean>
+
+	<!-- atomikos事务管理器 -->
+	<bean id="atomikosTransactionManager" class="com.atomikos.icatch.jta.UserTransactionManager"
+		init-method="init" destroy-method="close">
+		<property name="forceShutdown">
+			<value>true</value>
+		</property>
+	</bean>
+
+	<bean id="atomikosUserTransaction" class="com.atomikos.icatch.jta.UserTransactionImp">
+		<property name="transactionTimeout" value="300" />
+	</bean>
+
+	<!-- spring 事务管理器 -->
+	<bean id="jtaTransactionManager"
+		class="org.springframework.transaction.jta.JtaTransactionManager">
+		<property name="transactionManager" ref="atomikosTransactionManager" />
+		<property name="userTransaction" ref="atomikosUserTransaction" />
+		<property name="allowCustomIsolationLevels" value="true" />
+	</bean>
+
+
+
+	<!-- 配置事务传播特性 -->
+	<tx:advice id="transactionAdvice" transaction-manager="jtaTransactionManager">
+		<tx:attributes>
+			<tx:method name="save*" propagation="REQUIRED"
+				rollback-for="Exception" />
+			<tx:method name="update*" propagation="REQUIRED"
+				rollback-for="Exception" />
+			<tx:method name="move*" propagation="REQUIRED"
+				rollback-for="Exception" />
+			<tx:method name="*" propagation="SUPPORTS" read-only="true" />
+		</tx:attributes>
+	</tx:advice>
+
+	<!-- 配置相关类的方法参与事务 -->
+	<aop:config>
+		<aop:advisor pointcut="execution(* com.zihan.dubble.service..*.*(..))"
+			advice-ref="transactionAdvice" />
+	</aop:config>
+
+	<!-- 使用注解方式定义事务 -->
+	<tx:annotation-driven transaction-manager="jtaTransactionManager" />
+	<!-- 使用AspectJ方式配置AOP -->
+	<aop:aspectj-autoproxy proxy-target-class="true" />
+
+	<!-- define the SqlSessionFactory -->
+	<bean id="sqlSessionFactory1" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource1" />
+	</bean>
+
+	<bean id="mapperScannerConfigurer1" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="annotationClass" value="org.springframework.stereotype.Repository" />
+		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactory1" />
+		<property name="basePackage" value="com.zihan.dubble.dao.datasource1" />
+	</bean>
+
+	<bean id="sqlSessionFactory2" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource2" />
+	</bean>
+	<!--创建数据映射器，数据映射器必须为接口 -->
+	<bean id="mapperScannerConfigurer2" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="annotationClass" value="org.springframework.stereotype.Repository" />
+		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactory2" />
+		<property name="basePackage" value="com.zihan.dubble.dao.datasource2" />
+	</bean>
+</beans>
