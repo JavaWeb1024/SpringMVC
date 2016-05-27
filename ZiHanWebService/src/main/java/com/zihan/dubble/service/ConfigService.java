@@ -87,6 +87,7 @@ public class ConfigService {
 	 * @param key
 	 * @return
 	 */
+	@Cacheable(value="commonCache")
 	public String getStringByKey(String key) {
 		Config config = configDao.getConfigByKey(key);
 		if (config == null) {

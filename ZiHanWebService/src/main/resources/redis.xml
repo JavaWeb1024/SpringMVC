@@ -3,21 +3,22 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:p="http://www.springframework.org/schema/p"
 	xmlns:context="http://www.springframework.org/schema/context"
 	xmlns:jee="http://www.springframework.org/schema/jee" xmlns:tx="http://www.springframework.org/schema/tx"
-	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:cache="http://www.springframework.org/schema/cache"
 	xsi:schemaLocation="  
             http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd  
-            http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+            http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+            http://www.springframework.org/schema/cache
+	         http://www.springframework.org/schema/cache/spring-cache.xsd">
 
 	<context:property-placeholder location="classpath:zihan.properties" />
 	<bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
-		<property name="maxActive" value="50" />
+		<!-- <property name="maxActive" value="50" /> -->
 		<property name="maxIdle" value="8" />
-		<property name="maxWait" value="1000" />
+		<!-- <property name="maxWait" value="1000" /> -->
 		<property name="testOnBorrow" value="true" />
 		<property name="testOnReturn" value="true" />
 		<!-- <property name="testWhileIdle" value="true"/> -->
 	</bean>
-
 	<bean id="shardedJedisPool" class="redis.clients.jedis.ShardedJedisPool"
 		scope="singleton">
 		<constructor-arg index="0" ref="jedisPoolConfig" />
@@ -32,4 +33,33 @@
 			</list>
 		</constructor-arg>
 	</bean>
+
+	<cache:annotation-driven cache-manager="cacheManager" />
+
+	<!-- spring自己的换管理器，这里定义了两个缓存位置名称 ，既注解中的value -->
+	<bean id="connectionFactory"
+		class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory"
+		p:host-name="${redis.host}" p:port="${redis.port}" p:pool-config-ref="jedisPoolConfig"
+		p:database="0" />
+
+	<bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+		<property name="connectionFactory" ref="connectionFactory" />
+	</bean>
+	<bean id="cacheManager" class="org.springframework.cache.support.SimpleCacheManager">
+		<property name="caches">
+			<set>
+				<bean class="com.zihan.dubble.redis.springcache.RedisCache">
+					<property name="redisTemplate" ref="redisTemplate" />
+					<property name="name" value="default" />
+					<property name="liveTime" value="86400" />
+				</bean>
+				<bean class="com.zihan.dubble.redis.springcache.RedisCache">
+					<property name="redisTemplate" ref="redisTemplate" />
+					<property name="name" value="commonCache" />
+					<property name="liveTime" value="86400" />
+				</bean>
+			</set>
+		</property>
+	</bean>
+
 </beans>  
